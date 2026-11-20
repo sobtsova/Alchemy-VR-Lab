@@ -11,6 +11,7 @@ public class QuizScoreManager : MonoBehaviour
     public int totalScore = 0;
     public TMP_Text rewardTextMesh; // Текст результату
     public GameObject recipesBookPage; // Права сторінка книги рецептів (об'єкт Recipes)
+    public GameObject retryButtonObject; // Кнопка "Спробувати ще раз", коли балів < 3
 
     [Header("Step 2 References")]
     public Slider step2Slider;
@@ -21,35 +22,33 @@ public class QuizScoreManager : MonoBehaviour
     public TMP_InputField step3InputField;
     public GameObject vrKeyboardObject;
 
+    [Header("Telemetry (Lab 5 POST)")]
+    public WizardTelemetryManager telemetryManager;
+
     private int currentStep = 0;
 
     void Start()
     {
-        UpdateSteps();
-
-        if (rewardTextMesh != null)
-            rewardTextMesh.gameObject.SetActive(false);
-
-        if (recipesBookPage != null)
-            recipesBookPage.SetActive(false);
-
-        // Ховаємо клавіатуру на старті
-        if (vrKeyboardObject != null)
-            vrKeyboardObject.gameObject.SetActive(false);
-
         if (step3InputField != null)
         {
             step3InputField.onSelect.AddListener(ShowKeyboard);
         }
+
+        if (telemetryManager == null)
+        {
+            telemetryManager = FindFirstObjectByType<WizardTelemetryManager>();
+        }
+
+        ResetWizardState(startTelemetrySession: true);
     }
 
     private void ShowKeyboard(string text)
-{
-    if (vrKeyboardObject != null)
     {
-        vrKeyboardObject.SetActive(true);
+        if (vrKeyboardObject != null)
+        {
+            vrKeyboardObject.SetActive(true);
+        }
     }
-}
 
     void Update()
     {
@@ -108,13 +107,28 @@ public class QuizScoreManager : MonoBehaviour
         bool isToggleCorrect = step2Toggle != null && step2Toggle.isOn;
 
         bool earnedPoint = isSliderCorrect && isToggleCorrect;
+
+        if (!earnedPoint && telemetryManager != null)
+        {
+            float val = step2Slider != null ? Mathf.Round(step2Slider.value) : -1f;
+            bool tog = step2Toggle != null && step2Toggle.isOn;
+            telemetryManager.RecordWizardError($"Крок 2: невірні параметри (слайдер={val}, тоггл={tog})");
+        }
+
         NextStepWithScore(earnedPoint);
     }
 
     // Перевірка Кроку 3 (Текстове поле "acid")
     public void CheckStep3InputAndProceed()
     {
-        bool isInputCorrect = step3InputField != null && step3InputField.text.Trim().ToLower() == "acid";
+        string rawInput = step3InputField != null ? step3InputField.text.Trim() : "";
+        bool isInputCorrect = rawInput.ToLower() == "acid";
+
+        if (!isInputCorrect && telemetryManager != null)
+        {
+            telemetryManager.RecordWizardError($"Крок 3: очікувалось 'acid', введено '{rawInput}'");
+        }
+
         NextStepWithScore(isInputCorrect);
     }
 
@@ -124,6 +138,10 @@ public class QuizScoreManager : MonoBehaviour
         if (isCorrect)
         {
             totalScore++; // Останній бал за правильну пляшку
+        }
+        else if (telemetryManager != null)
+        {
+            telemetryManager.RecordWizardError("Крок 4: обрано невірну пляшку зілля");
         }
 
         // Показуємо загальний текст результату
@@ -140,6 +158,11 @@ public class QuizScoreManager : MonoBehaviour
             {
                 recipesBookPage.SetActive(true); // Появляється права сторінка з рецептами
             }
+
+            if (retryButtonObject != null)
+            {
+                retryButtonObject.SetActive(false); // При повному успіху кнопка повтору не потрібна
+            }
         }
         else
         {
@@ -147,6 +170,60 @@ public class QuizScoreManager : MonoBehaviour
             {
                 recipesBookPage.SetActive(false); // Якщо менше 3 балів — книга не з'являється
             }
+
+            if (retryButtonObject != null)
+            {
+                retryButtonObject.SetActive(true); // Показуємо кнопку "Пройти заново" при 0, 1 або 2 балах
+            }
+        }
+
+        // Після завершення візарду формуємо JSON і відправляємо POST-запит
+        if (telemetryManager != null)
+        {
+            telemetryManager.CompleteWizardAndSendReport();
+        }
+    }
+
+    // Викликається при натисканні кнопки "Спробувати ще раз"
+    public void RestartWizard()
+    {
+        ResetWizardState(startTelemetrySession: true);
+    }
+
+    private void ResetWizardState(bool startTelemetrySession)
+    {
+        currentStep = 0;
+        totalScore = 0;
+
+        if (rewardTextMesh != null)
+        {
+            rewardTextMesh.text = "";
+            rewardTextMesh.gameObject.SetActive(false);
+        }
+
+        if (recipesBookPage != null)
+            recipesBookPage.SetActive(false);
+
+        if (retryButtonObject != null)
+            retryButtonObject.SetActive(false);
+
+        if (vrKeyboardObject != null)
+            vrKeyboardObject.SetActive(false);
+
+        if (step2Slider != null)
+            step2Slider.value = step2Slider.minValue;
+
+        if (step2Toggle != null)
+            step2Toggle.isOn = false;
+
+        if (step3InputField != null)
+            step3InputField.text = "";
+
+        UpdateSteps();
+
+        if (startTelemetrySession && telemetryManager != null)
+        {
+            telemetryManager.BeginWizardSession();
         }
     }
 
