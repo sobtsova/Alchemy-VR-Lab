@@ -42,9 +42,7 @@ public class WizardTelemetryManager : MonoBehaviour
         }
     }
 
-    /// <summary>
     /// Викликай на старті проходження візарду.
-    /// </summary>
     public void BeginWizardSession()
     {
         _sessionId = Guid.NewGuid().ToString("N").Substring(0, 8);
@@ -55,9 +53,7 @@ public class WizardTelemetryManager : MonoBehaviour
         OnTelemetryStatusChanged?.Invoke($"Телеметрія: сесію #{_sessionId} розпочато");
     }
 
-    /// <summary>
     /// Викликай щоразу, коли користувач робить помилку на кроці візарду.
-    /// </summary>
     public void RecordWizardError(string errorMessage)
     {
         string entry = string.IsNullOrWhiteSpace(errorMessage)
@@ -68,9 +64,7 @@ public class WizardTelemetryManager : MonoBehaviour
         Debug.LogWarning($"[WizardTelemetry] Зафіксовано помилку: {entry}");
     }
 
-    /// <summary>
     /// Викликай після успішного завершення останнього кроку візарду.
-    /// </summary>
     public void CompleteWizardAndSendReport()
     {
         float elapsed = _isRunning
